@@ -7,7 +7,7 @@ import { useEffect } from "react"
 const Login = () => {
     const { data: session, status } = useSession()
     const router = useRouter()
-
+    // Redirect to dashboard if already logged in(different from cwh video)
     useEffect(() => {
         if (session) {
             router.push("/dashboard")
