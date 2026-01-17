@@ -7,41 +7,54 @@ import GitHubProvider from "next-auth/providers/github"
 import mongoose from 'mongoose'
 import User from '@/app/models/User'
 import Payment from '@/app/models/Payment'
-
+import connectDB from '@/app/db/connectDB'
 
 export const authoptions = NextAuth({
   providers: [
-    // OAuth authentication providers...
     GitHubProvider({
       clientId: process.env.GITHUB_ID,
-      clientSecret: process.env.GITHUB_SECRET
+      clientSecret: process.env.GITHUB_SECRET,
     }),
-    // AppleProvider({
-    //   clientId: process.env.APPLE_ID,
-    //   clientSecret: process.env.APPLE_SECRET
-    // }),
-    // FacebookProvider({
-    //   clientId: process.env.FACEBOOK_ID,
-    //   clientSecret: process.env.FACEBOOK_SECRET
-    // }),
-    // GoogleProvider({
-    //   clientId: process.env.GOOGLE_ID,
-    //   clientSecret: process.env.GOOGLE_SECRET
-    // }),
-    // // Passwordless / email sign in
-    // EmailProvider({
-    //   server: process.env.MAIL_SERVER,
-    //   from: 'NextAuth.js <no-reply@example.com>'
-    // }),
   ],
-  callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
-      if (account.provider === "github") {
-        //connect to the db
-        const client = await mongoose.connect()
-      }
-    }
-  }
-})
 
-export { authoptions as GET, authoptions as POST }
+  callbacks: {
+    async signIn({ user, account }) {
+      if (account.provider === "github") {
+        await connectDB();
+
+        const existingUser = await User.findOne({ email: user.email });
+
+        if (!existingUser) {
+          const newUser = await User.create({
+            name: user.name || user.login || "GitHub User", // ✅ REQUIRED FIELD FIX
+            email: user.email,
+            username: user.email.split("@")[0],
+          });
+
+          user.name = newUser.username;
+        } else {
+          user.name = existingUser.username;
+        }
+
+        return true;
+      }
+      return false;
+    },
+
+    async session({ session }) {
+      await connectDB();
+
+      const dbUser = await User.findOne({
+        email: session.user.email,
+      });
+
+      if (dbUser) {
+        session.user.name = dbUser.username;
+      }
+
+      return session;
+    },
+  },
+});
+
+export { authoptions as GET, authoptions as POST };
